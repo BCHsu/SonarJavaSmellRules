@@ -69,6 +69,8 @@ public class ClassNode implements Node {
 		float weightOfClass = (float) publicMethodsCounts / publicMembersCounts;
 		return weightOfClass;
 	}
+	
+	
 
 	private List<Tree> getPublicMethods() {
 		// 抓取classTree中的所有member 再透過filter過濾出public methods

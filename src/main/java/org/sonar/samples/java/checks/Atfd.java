@@ -1,6 +1,7 @@
 package org.sonar.samples.java.checks;
 
 public class Atfd implements Metric {
+	
 	private int value;
 	
 	private static final int FEW_ATFD_THRESHOLD = 5;
