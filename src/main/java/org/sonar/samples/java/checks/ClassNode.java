@@ -31,6 +31,7 @@ public class ClassNode implements Node {
 		return this.methods;
 	}
 
+	@Override
 	public String getName() {
 		return this.className;
 	}

@@ -19,12 +19,14 @@ import org.sonar.plugins.java.api.tree.SwitchStatementTree;
 import org.sonar.plugins.java.api.tree.Tree;
 import org.sonar.plugins.java.api.tree.WhileStatementTree;
 
+//需要取出  if()  for() while() 判斷式內的statements
+
 public class FeatureEnvy implements Smell {
 
 	private Metric atfd;
-	private static String logMemberStatement = "D:\\test\\getmemberStatement.txt";
-	private static String logStatement = "D:\\test\\getStatement.txt";
-
+	private static String atfdDetected = "D:\\test\\atfdDetected.txt";
+	private static String atfdValue = "D:\\test\\atfdForEachClass.txt";
+	private static String atfdResult = "D:\\test\\atfdSmell.txt";
 	public FeatureEnvy() {
 		// this.name = "DataClass";
 		initializeMetrics();
@@ -42,8 +44,29 @@ public class FeatureEnvy implements Smell {
 	private boolean haveFeatureEnvySmell(Node node) {
 		// logMetrics(node);
 		((Atfd) this.atfd).setValue(calculateMetrics(node));
-
+		String log="";
+		log = log 
+				+ "Class Name : " + node.getName()+"\r\n"
+				+ "Atfd : "+  ((Atfd) this.atfd).getValue() +"\r\n";								
+				
+		try {
+			DesignSmellDeficientEncapsulation.logOnFile(atfdValue, log);
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+		}
+		
 		if (((Atfd) atfd).atfdGreaterThanFew()) {
+			return true;
+		}
+		
+		//TODO test
+		if (((Atfd) atfd).atfdGreaterThan(1)) {
+			String information="ATFD detected in " + node.getName() +"\r\n" ;
+			try {
+				DesignSmellDeficientEncapsulation.logOnFile(atfdResult, information);
+			} catch (ClassNotFoundException e) {
+				e.printStackTrace();
+			}
 			return true;
 		}
 
@@ -54,180 +77,87 @@ public class FeatureEnvy implements Smell {
 		ClassNode classNode = (ClassNode) node;
 		int atfdCounts = 0;
 		List<MethodNode> methods = classNode.getAllMethodNodes();
-		for (MethodNode n : methods) {
-			// TODO
+		for (MethodNode n : methods) {	
 			atfdCounts = atfdCounts + calculateATFD(n);
 		}
-
-		// TODO
-		return atfdCounts + 100;
-
+		return atfdCounts;
 	}
 
-	// TODO
 	private int calculateATFD(Node node) {
 		MethodNode methNode = (MethodNode) node;
-		BlockTree blockTree = methNode.getBlockTree();
-		List<StatementTree> methodStatements = getBlockStatements(blockTree);
-		String information = "";
-		for (StatementTree s : methodStatements) {
-			
-			//2018/11/20 node改成methNode TODO
-			visitStatementTree(methNode, s, information);
+		int atfd = 0;
+		//呼叫每一個methodNode計算它們的ATFD
+		List<StatementTree> statements = methNode.getStatementsInMethodNode();
+		for(StatementTree s : statements) {
+			atfd = atfd + analysisStatementsATFD(s);
 		}
-		// TODO
-		if (1 > 0) {
-
-		}
-
-		return 1;
+		return atfd;
 	}
 
-	private boolean isSelectionStatements(StatementTree statement) {
-		return statement.is(Tree.Kind.IF_STATEMENT) | statement.is(Tree.Kind.DO_STATEMENT) | statement.is(Tree.Kind.WHILE_STATEMENT) | statement.is(Tree.Kind.FOR_STATEMENT) | statement.is(Tree.Kind.SWITCH_STATEMENT);
-	}
+	
+	private int analysisStatementsATFD(StatementTree s) {
 
-	private void visitSelectionStatement(Node node, StatementTree s, String logInformation) {
-		if (s.is(Tree.Kind.IF_STATEMENT)) {
-			StatementTree elseStatement = ((IfStatementTree) s).elseStatement();
-
-			// elseStatement 可能會是某種ifStatement (else if)
-			if (elseStatement != null) {
-				if (elseStatement.is(Tree.Kind.IF_STATEMENT)) {
-					visitSelectionStatement(node, elseStatement, logInformation);
-				} else {
-					getStatements(node, elseStatement, logInformation);
-				}
-			}
-
-			StatementTree thenStatement = ((IfStatementTree) s).thenStatement();
-			getStatements(node, thenStatement, logInformation);
-		} else if (s.is(Tree.Kind.DO_STATEMENT)) {
-			StatementTree doWhileStatement = ((DoWhileStatementTree) s).statement();
-			getStatements(node, doWhileStatement, logInformation);
-		} else if (s.is(Tree.Kind.WHILE_STATEMENT)) {
-			StatementTree whileStatement = ((WhileStatementTree) s).statement();
-			getStatements(node, whileStatement, logInformation);
-		} else if (s.is(Tree.Kind.FOR_STATEMENT)) {
-			StatementTree forStatement = ((ForStatementTree) s).statement();
-			getStatements(node, forStatement, logInformation);
-		} else if (s.is(Tree.Kind.SWITCH_STATEMENT)) {
-			StatementTree switchStatement = s;
-			getStatements(node, switchStatement, logInformation);
-		} else if (s.is(Tree.Kind.FOR_EACH_STATEMENT)) {
-			StatementTree forEachStatement = ((ForEachStatement) s).statement();
-			getStatements(node, forEachStatement, logInformation);
-		}
-	}
-
-	private void getStatements(Node node, StatementTree s, String logInformation) {
-		if (s != null) {
-			if (s.is(Tree.Kind.SWITCH_STATEMENT)) {
-				List<CaseGroupTree> cases = ((SwitchStatementTree) s).cases();
-				if (cases != null) {
-					for (CaseGroupTree c : cases) {
-						List<StatementTree> caseBlock = c.body();
-						logBlockInformation(node, caseBlock, logInformation);
-					}
-				}
-			} else if (!s.is(Tree.Kind.RETURN_STATEMENT)) {
-				List<StatementTree> block = getBlockStatements((BlockTree) s);
-				logBlockInformation(node, block, logInformation);
-			}
-		}
-	}
-
-	private void logBlockInformation(Node node, List<StatementTree> block, String logInformation) {
-		if (block != null) {
-			for (StatementTree st : block) {
-				String log = logInformation;
-				visitStatementTree(node, st, log);
-			}
-		}
-	}
-
-	String visitStatementTree(Node node, StatementTree s, String information) {
-		String log = information;
-		if (s.is(Tree.Kind.EXPRESSION_STATEMENT) || s.is(Tree.Kind.VARIABLE)) {
-			visitStatement(node, s, log);
-		}
-		// 遞迴走訪 if else for switch等等區塊
-		if (isSelectionStatements(s)) {
-			visitSelectionStatement(node, s, log);
-		}
-		return log;
-	}
-
-	private String visitStatement(Node node, StatementTree s, String information) {
-
+		//TODO
 		if (s.is(Tree.Kind.VARIABLE)) {
 			// IdentifierTree idTree = ((VariableTree) s).simpleName();
-		}
-		
-		
-		if (s.is(Tree.Kind.EXPRESSION_STATEMENT)) {
+			return 0;
+		}else if (s.is(Tree.Kind.EXPRESSION_STATEMENT)) {
 			ExpressionTree epTree = ((ExpressionStatementTree) s).expression();
-			
 			if (epTree.is(Tree.Kind.METHOD_INVOCATION)) {
+				
 				String log = "";
-				Symbol methodSymbol = ((MethodInvocationTree) epTree).symbol();
-				String methodOwner = methodSymbol.owner().name();
-				List<ClassNode> classes = DesignSmellDeficientEncapsulation.getClasses();
+				//List<ClassNode> classes = DesignSmellDeficientEncapsulation.getClasses();
 				ExpressionTree methodSelect = ((MethodInvocationTree) epTree).methodSelect() ;
 				
+				
+				//如果ExpressionTree中的type是自己定義的類別的話 取出來就都會是!unknown! 
+				//其他公用API則可以取出對應的type
+				
+				//可能是需要提供正確的binary檔才能取出對應的ExpressionTree
 				if(methodSelect.is(Tree.Kind.MEMBER_SELECT)) {
 					ExpressionTree ep = ((MemberSelectExpressionTree)methodSelect).expression();
-					IdentifierTree id = ((MemberSelectExpressionTree) methodSelect).identifier() ;
-					//String info ="";
+					IdentifierTree id = ((MemberSelectExpressionTree)methodSelect).identifier() ;
 					if (ep!= null && id!=null) {
-						if (id.name().equals("testabc")) {
-							log = log //+"Symbol name: " + methodSymbol.name() + "\r\n"
-									+ "expression : " + ep +"\r\n"
-									+ "identifier : "+ id +"\r\n"
-									+ "method name : "+ ((MethodNode) node).getMethodName() +"\r\n"
-									+ "identifier name : "+ id.name() +"\r\n";
+						if (isGetterMethod(id.name())) {							
 							
-							try {
-								DesignSmellDeficientEncapsulation.logOnFile(logStatement, log);
-							} catch (ClassNotFoundException e) {
-								e.printStackTrace();
-							}
+							/*
+							if(ep.is(Tree.Kind.IDENTIFIER)) {
+								
+							}*/
+							/*
+							for (ClassNode cn : classes) {
+								if (methodOwner.equals(cn.getName())) {
+									// information = information + " Found Method owner equals Symbol owner" +
+									// "\r\n";
+								}
+							}	*/
+							
+							//if(id.symbol().toString().equals("!unknownSymbol!")) {
+								log = log //+"Symbol name: " + methodSymbol.name() + "\r\n"
+										+ "expression : " + ep +"\r\n"
+										+ "expression type: " + ep.symbolType() +"\r\n"									
+										+ "identifier name : "+ id.name() +"\r\n";		
+								log = log + "identifier symbol: "+ id.symbol() +"\r\n"	
+										  + "identifier symbol name: "+ id.symbol().name() +"\r\n"
+										  + "identifier symbol type: "+ id.symbol().type() +"\r\n";
+								try {
+									DesignSmellDeficientEncapsulation.logOnFile(atfdDetected, log);
+								} catch (ClassNotFoundException e) {
+									e.printStackTrace();
+								}
+								return 1;
+							//}
+							
 						}										
 					}
-				}
-				if (methodSymbol.name()!= null) {
-				//String method = methodSelect.toString();
-						if (methodSymbol.name().equals("testabc")) {
-							log = log //+"Symbol name: " + methodSymbol.name() + "\r\n"
-							+ "method owner name: " + methodSymbol.owner().name() + "\r\n"
-							+ "package name: " + methodSymbol.owner().owner().name()  + "\r\n"
-							+ "method select: " + methodSelect + "\r\n" 
-							+ "method name: " + ((MethodNode) node).getMethodName() + "\r\n";
-							
-							try {
-								DesignSmellDeficientEncapsulation.logOnFile(logStatement, log);
-							} catch (ClassNotFoundException e) {
-								e.printStackTrace();
-							}
-						}
-					
-				}
-				for (ClassNode cn : classes) {
-					// information = information +" ClassNodes :"+ cn.getName()+ "\r\n";
-					if (methodOwner.equals(cn.getName())) {
-						// information = information + " Found Method owner equals Symbol owner" +
-						// "\r\n";
-					}
-				}
-			}			
-		}	
-		return information;
-	}
-
-	private List<StatementTree> getBlockStatements(BlockTree blockTree) {
-		if (blockTree.body() != null) {
-			return blockTree.body();
+				}							
+			}
 		}
-		return null;
+		return 0;
+	}
+	
+	private boolean isGetterMethod(String methodName) {
+		String getterRegex = "^get.+";
+		return methodName.matches(getterRegex);
 	}
 }

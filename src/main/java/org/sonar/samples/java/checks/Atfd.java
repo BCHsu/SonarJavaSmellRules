@@ -25,4 +25,11 @@ public class Atfd implements Metric {
 	
 		return true;
 	}
+	
+	//Method for testing
+
+	public boolean atfdGreaterThan(int threshold) {
+		
+		return this.value > threshold;
+	}
 }
