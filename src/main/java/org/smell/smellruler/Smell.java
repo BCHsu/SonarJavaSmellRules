@@ -1,7 +1,13 @@
 package org.smell.smellruler;
 
-import org.smell.astmodeler.Node;
-
 public interface Smell {
-	public boolean detected(Node node);	
+	boolean is(Smell.Type type);
+	public Smell.Type type();
+	
+	public String smellDetail();
+	enum Type {
+		 DATACLASS,
+		 FEATUREENVY,
+		 BROKENMODULARIATION;
+	}
 }

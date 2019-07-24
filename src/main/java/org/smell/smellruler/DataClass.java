@@ -1,87 +1,55 @@
 package org.smell.smellruler;
 
-import org.smell.astmodeler.ClassNode;
-import org.smell.astmodeler.Node;
-import org.smell.metricruler.Metric;
-import org.smell.metricruler.NopaAndNoam;
-import org.smell.metricruler.Wmc;
-import org.smell.metricruler.Woc;
-import org.sonar.samples.java.checks.BrokenModularizationRule;
-
 public class DataClass implements Smell {
-
-	private Metric woc;
-	private Metric wmc;
-	private Metric nopaAndNoam;
-	private static String logDataClass = "D:\\test\\DataClassSmell.txt";
+	private float  wocValue;
+	private int  wmcValue;
+	private int nopaAndNoamValue;
+	private static final Smell.Type smellType = Smell.Type.DATACLASS;
 	
-	public DataClass() {
-		initializeMetrics();
+	public DataClass(float woc, int wmc, int nopaAndNoam) {
+		this.wocValue = woc;
+		this.wmcValue = wmc;
+		this.nopaAndNoamValue = nopaAndNoam;
 	}
-	
-	private void initializeMetrics() {
-		this.woc= new Woc();
-		this.wmc= new Wmc();
-		this.nopaAndNoam= new NopaAndNoam();
+
+	@Override
+	public Smell.Type type() {
+		return smellType;
 	}
 	
 	@Override
-	public boolean detected(Node node) {
-		return haveDataClassSmell(node);
+	public boolean is(Smell.Type type) {
+		return smellType == type;
 	}
-		
-	private boolean haveDataClassSmell(Node node) {
-		configureMetrics(node);		
-		if ( ((Woc) woc).lessThanThreshold() && 
-			  ( (((NopaAndNoam)nopaAndNoam).greaterThanFew()  && ((Wmc) wmc).lessThanSuperSuperHigh()) ||
-			    (((NopaAndNoam)nopaAndNoam).greaterThanMany() && ((Wmc) wmc).lessThanSuperSuperHigh()) 
-			  )
-		   ){
-			try {
-				String info = "wocLessThanThreshold : " + ((ClassNode)node).getName() + "\r\n";
-				info = info +"woc : "+  ((Woc)woc).getValue() + "\r\n";
-				info = info +"wmc : "+  ((Wmc)wmc).getValue()+ "\r\n";
-				info = info +"NOPA : "+  ((NopaAndNoam)nopaAndNoam).getNopaValue() + "\r\n";
-				info = info +"NOAM : "+  ((NopaAndNoam)nopaAndNoam).getNoamValue() + "\r\n";
-				info = info +" File owner : " +((ClassNode)node).getFile() + "\r\n";
-				BrokenModularizationRule.logOnFile(logDataClass, info);
-			} catch (ClassNotFoundException e) {
-				e.printStackTrace();
-			}
-			((ClassNode)node).setDataClass(this);
-			return true;
-		} else {
-			return false;
-		}
-	}
-		
-	private void configureMetrics(Node node) {
-		((Woc)this.woc).calculateMetric(node);
-		((Wmc)this.wmc).calculateMetric(node);		
-		((NopaAndNoam)this.nopaAndNoam).calculateMetric(node);	
+	
+	public float getWocValue() {
+		return wocValue;
 	}
 
-	public Metric getWoc() {
-		return woc;
+	public void setWocValue(float woc) {
+		this.wocValue = woc;
 	}
 
-	public void setWoc(Metric woc) {
-		this.woc = woc;
+	public int getWmcValue() {
+		return wmcValue;
 	}
 
-	public Metric getWmc() {
-		return wmc;
+	public void setWmcValue(int wmc) {
+		this.wmcValue = wmc;
 	}
 
-	public void setWmc(Metric wmc) {
-		this.wmc = wmc;
+	public int getNopaAndNoamValue() {
+		return nopaAndNoamValue;
 	}
 
-	public Metric getNopaAndNoam() {
-		return nopaAndNoam;
+	public void setNopaAndNoamValue(int nopaAndNoam) {
+		this.nopaAndNoamValue = nopaAndNoam;
 	}
 
-	public void setNopaAndNoam(Metric nopaAndNoam) {
-		this.nopaAndNoam = nopaAndNoam;
+	@Override
+	public String smellDetail() {
+		String dataClassMessage = "Data Class detected" + "\r\n" + "WOC: " + this.getWocValue() + "\r\n" + "WMC: "
+				+ this.getWmcValue() + "\r\n" + "NOPA + NOAM: " + this.getNopaAndNoamValue() + "\r\n";
+		return dataClassMessage;
 	}
 }

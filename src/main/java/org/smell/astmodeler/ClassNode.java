@@ -4,10 +4,10 @@
 
 package org.smell.astmodeler;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.smell.smellruler.Smell;
 import org.sonar.plugins.java.api.tree.ClassTree;
@@ -15,29 +15,25 @@ import org.sonar.plugins.java.api.tree.MethodTree;
 import org.sonar.plugins.java.api.tree.Tree;
 import org.sonar.plugins.java.api.tree.VariableTree;
 
-public class ClassNode implements Node {
+public class ClassNode extends SmellableNode{
 	private ClassTree classTree;
 	private String className;
 	private List<MethodNode> methods;	
 	private int wmc;
-	private File file;
-	private int startLine;
-	private Smell dataClass;
-
-	public File getFile() {
-		return file;
-	}
-
-	public void setFile(File file) {
-		this.file = file;
-	}
+	private static final Node.Kind kind = Node.Kind.CLASS;
 
 	public ClassNode(ClassTree classTree) {
+		initializeClassModel(classTree);
+		initializeMethodModel();
+	}
+	
+	private void initializeClassModel(ClassTree classTree){
+		smellLists = new ArrayList<Smell>();
 		this.classTree = classTree;
 		this.className = "" + this.classTree.simpleName();
-		this.startLine = classTree.openBraceToken().line();
-		initializeMethodList();
+		setStartLine(classTree.openBraceToken().line());
 	}
+	
 
 	public List<MethodNode> getAllMethodNodes() {
 		return this.methods;
@@ -60,69 +56,109 @@ public class ClassNode implements Node {
 		return this.wmc;
 	}
 
-	private void initializeMethodList() {
+	private void initializeMethodModel() {	
 		this.methods = new ArrayList<MethodNode>();
 		List<Tree> allMethods = getAllMethods();
 		for (Tree m : allMethods) {
-			if (m.is(Tree.Kind.METHOD)) {
-				MethodNode methodNode = new MethodNode((MethodTree) m);
-				methods.add(methodNode);
+			if (isMethod(m)) {
+				MethodNode methodNode = new MethodNode((MethodTree) m);		
+				//connect classnode and methodnode
+				methodNode.setOwner(this);
+				methods.add(methodNode);								
 			}
 		}
 	}
 
-	public boolean haveSmell(Smell smell) {
-		return smell.detected(this);
+	
+	private boolean isMethod(Tree tree){
+		return tree.is(Tree.Kind.METHOD);
 	}
 	
+	private boolean isVariable(Tree tree){
+		return tree.is(Tree.Kind.VARIABLE);
+	}
+	
+	private boolean isPublic(Tree member){
+		if(isMethod(member)){
+			return ((MethodTree) member).symbol().isPublic();
+		}
+		if(isVariable(member)){
+			return ((VariableTree) member).symbol().isPublic();
+		}
+		
+		return false;
+	}
+	
+	private Stream<Tree> getClassTreeMemebersStream(){
+		return this.classTree.members().stream();
+	}
 	public List<Tree> getPublicMethods() {
 		// 抓取classTree中的所有member 再透過filter過濾出public methods
-		List<Tree> publicMethods = this.classTree.members().stream()
+
+		return getClassTreeMemebersStream()			
 				// 先找出Tree.Kind.METHOD 再過濾中其中修飾元是public的方法
 				// member.is(A,B) 可以同時過濾出A跟B兩種節點
 				// 也可以串接多個filter增加篩選條件
-				.filter(member -> member.is(Tree.Kind.METHOD) && ((MethodTree) member).symbol().isPublic()).collect(Collectors.toList());
-		return publicMethods;
+		.filter(member -> isPublicMethod(member))
+				.collect(Collectors.toList());
 	}
-
+	
 	private List<Tree> getAllMethods() {
-		List<Tree> allMethods = this.classTree.members().stream()
-				.filter(member -> member.is(Tree.Kind.METHOD)).collect(Collectors.toList());
-		return allMethods;
+		return getClassTreeMemebersStream()
+				.filter(member -> isMethod(member))
+				.collect(Collectors.toList());
 	}
-
+	
+	private boolean isPublicVariable(Tree member){
+		return isVariable(member)  && isPublic(member);
+	}
+	
+	private boolean isPublicMethod(Tree member){
+		return isMethod(member)  && isPublic(member);
+	}
+	
 	public List<Tree> getPublicVariables() {
-		List<Tree> publicVariables = this.classTree.members().stream().filter(member -> member.is(Tree.Kind.VARIABLE) && ((VariableTree) member).symbol().isPublic()).collect(Collectors.toList());
-		return publicVariables;
+		return  getClassTreeMemebersStream()		
+				.filter(member -> isPublicVariable(member) )
+				.collect(Collectors.toList());
 	}
 
 	public List<Tree> getPublicMembers() {
-		List<Tree> pubicMembers = this.classTree.members().stream().filter(member -> ((member.is(Tree.Kind.VARIABLE) && ((VariableTree) member).symbol().isPublic())) | ((member.is(Tree.Kind.METHOD) && ((MethodTree) member).symbol().isPublic()))).collect(Collectors.toList());
-		return pubicMembers;
+		return  getClassTreeMemebersStream()
+						.filter(member -> ( isPublicVariable(member)) 
+						| isPublicMethod(member))
+						.collect(Collectors.toList());
 	}
 
-	public List<Tree> getGetterAndSetterMethods() {
-		String getterRegex = "^get.+";
+	private boolean isGetterMethod(Tree member){
+		String getterRegex = "^get.+";	
+		return isPublicMethod(member) && methodNameisStartWith(member,getterRegex);
+	}
+	
+	
+	private boolean isSetterMethod(Tree member){
 		String setterRegex = "^set.+";
+		return isPublicMethod(member) && methodNameisStartWith(member,setterRegex);
+	}
+	
+	private boolean methodNameisStartWith(Tree member, String targetString){
+		if(isMethod(member)){
+			return ((MethodTree) member).simpleName().toString().matches(targetString);
+		}
+		return false;
+	}	
+	
+	public List<Tree> getGetterAndSetterMethods() {
 		// 找出public的getter跟setter方法
 		// 判斷getter/setter方法的依據: 方法名稱開頭為getXXX或setXXX
-		List<Tree> getterAndSetterMethods = this.classTree.members().stream().filter(member -> ((member.is(Tree.Kind.METHOD) && ((MethodTree) member).symbol().isPublic() && ((MethodTree) member).simpleName().toString().matches(getterRegex))) | ((member.is(Tree.Kind.METHOD) && ((MethodTree) member).symbol().isPublic() && ((MethodTree) member).simpleName().toString().matches(setterRegex)))).collect(Collectors.toList());
-		return getterAndSetterMethods;
+		return  getClassTreeMemebersStream()
+						.filter(member -> isGetterMethod(member) | 
+								isSetterMethod(member))
+						.collect(Collectors.toList());
 	}
-
-	public int getStartLine() {
-		return startLine;
-	}
-
-	public void setStartLine(int startLine) {
-		this.startLine = startLine;
-	}
-
-	public Smell getDataClass() {
-		return dataClass;
-	}
-
-	public void setDataClass(Smell dataClass) {
-		this.dataClass = dataClass;
+	
+	@Override
+	public Node.Kind kind() {
+		return kind;
 	}
 }

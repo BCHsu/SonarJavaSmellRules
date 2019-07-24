@@ -1,6 +1,5 @@
 package org.smell.astmodeler;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,21 +16,25 @@ import org.sonar.plugins.java.api.tree.SwitchStatementTree;
 import org.sonar.plugins.java.api.tree.Tree;
 import org.sonar.plugins.java.api.tree.WhileStatementTree;
 
-public class MethodNode implements Node {
+public class MethodNode extends SmellableNode{
 	private MethodTree methodTree;
 	private String methodName;
 	private BlockTree blockTree;
-	private File file;
-	private int startLine;
-	private Smell featureEnvy;
+	private static final  Node.Kind kind = Node.Kind.METHOD;
+	private ClassNode owner;
 
 	public MethodNode(MethodTree methodTree) {
+		initializeMethodNode(methodTree);	
+	}
+
+	private void initializeMethodNode(MethodTree methodTree){
+		smellLists = new ArrayList<Smell>();
 		this.methodTree = methodTree;
 		this.methodName = this.methodTree.simpleName().name();
 		this.blockTree = this.methodTree.block();
 		this.startLine = methodTree.openParenToken().line();
 	}
-
+	
 	@Override
 	public String getName() {
 		return this.methodName;
@@ -56,6 +59,7 @@ public class MethodNode implements Node {
 		return statement.is(Tree.Kind.IF_STATEMENT) | statement.is(Tree.Kind.DO_STATEMENT) | statement.is(Tree.Kind.WHILE_STATEMENT) | statement.is(Tree.Kind.FOR_STATEMENT) | statement.is(Tree.Kind.SWITCH_STATEMENT) | statement.is(Tree.Kind.FOR_EACH_STATEMENT);
 	}
 
+	//TODO refactor
 	private void visitSelectionStatement(StatementTree statementTree, List<StatementTree> statements) {
 		if (statementTree.is(Tree.Kind.IF_STATEMENT)) {
 			parseIfStatementTree(statementTree, statements);
@@ -103,7 +107,6 @@ public class MethodNode implements Node {
 		}
 		return caseStatements;
 	}
-	
 	
 	//TODO
 	//StatementTree底下還有很多其他的tree : ex: ExpressionStatmentTree, ForStatementTree, ThrowStatementTree...
@@ -154,8 +157,7 @@ public class MethodNode implements Node {
 
 	public List<StatementTree> getStatementsInMethodNode() {
 		BlockTree blockTree = this.getBlockTree();
-		List<StatementTree> blockStatements = this.getBlockStatements(blockTree);
-		
+		List<StatementTree> blockStatements = this.getBlockStatements(blockTree);		
 		return visitBlock(blockStatements);
 	}
 
@@ -163,27 +165,16 @@ public class MethodNode implements Node {
 		return object != null;
 	}
 
-	public File getFile() {
-		return file;
+	@Override
+	public Node.Kind kind() {
+		return kind;
 	}
 
-	public void setFile(File file) {
-		this.file = file;
+	public void setOwner(ClassNode classNode) {
+		this.owner=classNode;	
 	}
-
-	public int getStartLine() {
-		return startLine;
-	}
-
-	public void setStartLine(int startLine) {
-		this.startLine = startLine;
-	}
-
-	public Smell getFeatureEnvy() {
-		return featureEnvy;
-	}
-
-	public void setFeatureEnvy(Smell featureEnvy) {
-		this.featureEnvy = featureEnvy;
+	
+	public ClassNode getOwner() {
+		return this.owner;	
 	}
 }
